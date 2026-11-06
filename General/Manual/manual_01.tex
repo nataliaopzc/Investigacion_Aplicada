@@ -590,4 +590,593 @@ de altura, expresada en metros por segundo.
 se deben aceptar las licencias del conjunto ERA5
 en el portal de Copernicus.
 
+\clearpage
+\section{Entrega 02. Eventos de viento intenso y textura del suelo}
+
+\subsection*{Objetivos}
+\begin{enumerate}[label=\arabic*.]
+\item Calcular la frecuencia de horas de viento relativamente intenso en tres puntos del Maule.
+\item Reconocer el número de eventos consecutivos que superan varios umbrales exploratorios.
+\item Obtener y representar espacialmente las fracciones de arena, limo y arcilla del suelo superficial.
+\item Distinguir entre características del suelo, condiciones meteorológicas y transporte efectivo de polvo o hierro.
+\end{enumerate}
+
+\textbf{Advertencia científica:} los valores de 6, 8 y 10 m/s son umbrales de comparación \emph{exploratorios}, no velocidades críticas de erosión. SoilGrids estima \emph{textura de suelo}, no mediciones de granulometría de aerosoles ni contenido de hierro.
+
+\subsection*{Antes de comenzar}
+\texttt{datos/viento\_Constitucion.csv}, \texttt{datos/viento\_Talca.csv} y
+\texttt{datos/viento\_San\_Clemente.csv}, creados en la entrega anterior.
+Cada uno debiera contener 720 horas de septiembre de 2025. Verificar también
+que el entorno \texttt{.venv} esté seleccionado en VS Code.
+
+Instalar la única biblioteca adicional para mapas raster y actualizar el registro:
+\begin{lstlisting}
+python -m pip install rasterio
+python -m pip freeze > requirements.txt
+\end{lstlisting}
+
+\subsection{Parte E. Identificar eventos de viento intenso}
+
+\textbf{Pregunta:} ¿en cuál de los tres puntos se presentan más horas con
+vientos sobre determinados umbrales y cómo se distribuyen durante el mes?
+
+La frecuencia horaria de excedencia de un umbral \(U\) se calcula como
+\[
+F(U)=100\,\frac{\#\{t:\,V(t)\geq U\}}{N}\quad(\%).
+\]
+Un \emph{evento} es una secuencia de una o más horas consecutivas con
+\(V(t)\geq U\); dos secuencias separadas por al menos una hora bajo el umbral
+se consideran eventos diferentes. No confundir \emph{horas de excedencia}
+con \emph{número de eventos}.
+
+Crear el archivo \texttt{scripts/eventos\_viento.py} con el siguiente código:
+\begin{lstlisting}[language=Python]
+from pathlib import Path
+import pandas as pd
+import matplotlib.pyplot as plt
+
+BASE = Path(__file__).resolve().parents[1]
+DATOS = BASE / 'datos'
+FIG = BASE / 'figuras'
+FIG.mkdir(exist_ok=True)
+archivos = sorted(DATOS.glob('viento_*.csv'))
+if len(archivos) != 3:
+    raise FileNotFoundError('Se requieren los tres CSV del Manual 01.')
+
+df = pd.concat([pd.read_csv(p) for p in archivos], ignore_index=True)
+df['fecha_hora_utc'] = pd.to_datetime(df['fecha_hora_utc'], utc=True)
+vel = 'wind_speed_10m'
+if df[['sitio', 'fecha_hora_utc', vel]].isna().any().any():
+    raise ValueError('Hay valores ausentes en los datos.')
+if df.duplicated(['sitio', 'fecha_hora_utc']).any():
+    raise ValueError('Hay horas duplicadas por sitio.')
+
+umbrales = [6, 8, 10]  # m/s; exploratorios, no umbrales de erosion
+resumen = []
+for sitio, grupo in df.groupby('sitio'):
+    grupo = grupo.sort_values('fecha_hora_utc').copy()
+    dt = grupo['fecha_hora_utc'].diff().dt.total_seconds().div(3600)
+    if not (dt.iloc[1:] == 1).all():
+        raise ValueError(f'La serie de {sitio} no es horaria continua.')
+    for umbral in umbrales:
+        excede = grupo[vel] >= umbral
+        # Los eventos comienzan cuando una hora supera el umbral
+        # y la hora anterior no lo supera.
+        inicia = excede & ~excede.shift(fill_value=False)
+        resumen.append({
+            'sitio': sitio,
+            'umbral_m_s': umbral,
+            'horas_excedencia': int(excede.sum()),
+            'porcentaje_horas': round(100 * excede.mean(), 2),
+            'numero_eventos': int(inicia.sum())
+        })
+res = pd.DataFrame(resumen)
+res.to_csv(DATOS / 'resumen_eventos.csv', index=False)
+print(res.to_string(index=False))
+
+fig, ax = plt.subplots(figsize=(8, 4))
+for sitio, grupo in res.groupby('sitio'):
+    ax.plot(grupo['umbral_m_s'], grupo['porcentaje_horas'], 'o-', label=sitio)
+ax.set(xlabel='Umbral exploratorio (m/s)',
+       ylabel='Horas sobre el umbral (%)',
+       title='Frecuencia de vientos intensos, septiembre 2025')
+ax.set_xticks(umbrales)
+ax.legend()
+ax.grid(alpha=0.3)
+fig.tight_layout()
+fig.savefig(FIG / 'frecuencia_umbrales.png', dpi=160)
+plt.close(fig)
+
+# Porcentaje de horas por dia, para el umbral de 8 m/s
+copia = df.copy()
+copia['dia_utc'] = copia['fecha_hora_utc'].dt.date
+copia['excede_8'] = copia[vel] >= 8
+diario = (copia.groupby(['sitio', 'dia_utc'])['excede_8']
+          .mean().mul(100).reset_index(name='porcentaje_horas'))
+diario.to_csv(DATOS / 'eventos_diarios_8ms.csv', index=False)
+fig, ax = plt.subplots(figsize=(10, 4))
+for sitio, grupo in diario.groupby('sitio'):
+    ax.plot(pd.to_datetime(grupo['dia_utc']), grupo['porcentaje_horas'],
+            label=sitio, marker='.', linewidth=1)
+ax.set(xlabel='Fecha UTC', ylabel='Horas del dia >= 8 m/s (%)',
+       title='Variacion diaria de eventos intensos')
+ax.legend()
+fig.autofmt_xdate()
+fig.tight_layout()
+fig.savefig(FIG / 'eventos_diarios.png', dpi=160)
+plt.close(fig)
+print('Listo: CSV de eventos y dos figuras.')
+
+\end{lstlisting}
+
+Ejecutar desde la carpeta principal del proyecto:
+\begin{lstlisting}
+python scripts/eventos_viento.py
+\end{lstlisting}
+
+\textbf{Archivos esperados:}
+\begin{itemize}[nosep]
+\item \texttt{datos/resumen\_eventos.csv}: horas, porcentajes y número de eventos por sitio y umbral.
+\item \texttt{datos/eventos\_diarios\_8ms.csv}: porcentajes diarios para 8 m/s.
+\item \texttt{figuras/frecuencia\_umbrales.png} y \texttt{figuras/eventos\_diarios.png}.
+\end{itemize}
+
+\textbf{Comprobación:} cada porcentaje debe estar entre 0 y 100; para cada sitio,
+la frecuencia de excedencia debe disminuir o permanecer constante cuando el
+umbral aumenta. Interpretar el resultado como comparación meteorológica,
+no como una tasa de emisión de partículas.
+
+\subsection{Parte F. Mapa de textura superficial del suelo (25 min)}
+
+\textbf{Pregunta:} ¿cómo varía espacialmente la proporción estimada de arena,
+limo y arcilla en un sector piloto cercano a Talca?
+
+\textbf{Fuente real:} \emph{SoilGrids}, ISRIC -- World Soil Information,
+\url{https://isric.org/explore/soilgrids}. Se utilizarán las capas
+\texttt{sand\_0-5cm\_mean}, \texttt{silt\_0-5cm\_mean} y
+\texttt{clay\_0-5cm\_mean}, correspondientes a estimaciones para el
+intervalo 0--5 cm de profundidad. Resolución nominal: aproximadamente
+250 m. Licencia: CC BY 4.0.
+
+Estas variables representan fracciones de la tierra fina (no incluyen toda la
+fracción de fragmentos gruesos). Los datos se publican en g/kg:
+\[
+\mathrm{porcentaje}\;(\%)=\frac{\mathrm{valor\ en\ g/kg}}{10}.
+\]
+Una distribución de estas tres fracciones \emph{no} equivale a una curva
+granulométrica completa; no permite calcular D10, D50 o D90.
+
+Para evitar descargar mapas de todo Chile, se usará un \textbf{rectángulo
+piloto alrededor de Talca}, entre longitudes $-71.85$ y $-71.45$ y
+latitudes $-35.65$ y $-35.20$. No debe rotularse como ``toda la Región del Maule''.
+
+Crear la subcarpeta \texttt{datos/soilgrids/} y el archivo
+\texttt{scripts/textura\_suelo.py}. Este código consulta el servicio WCS,
+guarda tres GeoTIFF, produce mapas y genera una tabla descriptiva:
+\begin{lstlisting}[language=Python]
+from pathlib import Path
+import requests
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import rasterio
+from rasterio.plot import plotting_extent
+
+BASE = Path(__file__).resolve().parents[1]
+DATOS = BASE / 'datos' / 'soilgrids'
+FIG = BASE / 'figuras'
+DATOS.mkdir(parents=True, exist_ok=True)
+FIG.mkdir(exist_ok=True)
+
+# Sector piloto de Talca (NO equivale a toda la Region del Maule).
+OESTE, ESTE = -71.85, -71.45
+SUR, NORTE = -35.65, -35.20
+URL = 'https://maps.isric.org/mapserv'
+
+# Obtener rasteres de textura 0-5 cm mediante WCS.
+for propiedad in ('sand', 'silt', 'clay'):
+    destino = DATOS / f'{propiedad}_0-5cm_mean.tif'
+    if destino.exists():
+        print('Usando archivo existente:', destino)
+        continue
+    parametros = [
+        ('map', f'/map/{propiedad}.map'),
+        ('SERVICE', 'WCS'),
+        ('VERSION', '2.0.1'),
+        ('REQUEST', 'GetCoverage'),
+        ('COVERAGEID', f'{propiedad}_0-5cm_mean'),
+        ('FORMAT', 'GEOTIFF_INT16'),
+        ('SUBSET', f'long({OESTE},{ESTE})'),
+        ('SUBSET', f'lat({SUR},{NORTE})'),
+        ('SUBSETTINGCRS', 'http://www.opengis.net/def/crs/EPSG/0/4326'),
+        ('OUTPUTCRS', 'http://www.opengis.net/def/crs/EPSG/0/4326')
+    ]
+    try:
+        r = requests.get(URL, params=parametros, timeout=90)
+        r.raise_for_status()
+        if r.content[:4] not in (b'II*\x00', b'MM\x00*'):
+            raise ValueError('El servidor no devolvio un GeoTIFF. ' +
+                             r.text[:180].replace('\n', ' '))
+        destino.write_bytes(r.content)
+        print('Descargado:', destino)
+    except (requests.RequestException, ValueError) as error:
+        raise RuntimeError(
+            'Fallo WCS: ' + str(error) + '\n' +
+            'Alternativa: descargar las capas sand/silt/clay de 0-5 cm '
+            'en SoilGrids.org o mediante QGIS-WCS, guardarlas con los '
+            'nombres indicados en datos/soilgrids y repetir este script.') from error
+
+capas = {}
+referencia = None
+for propiedad in ('sand', 'silt', 'clay'):
+    with rasterio.open(DATOS / f'{propiedad}_0-5cm_mean.tif') as src:
+        if referencia is None:
+            referencia = (src.crs, src.transform, src.width, src.height)
+            extent = plotting_extent(src)
+        elif (src.crs, src.transform, src.width, src.height) != referencia:
+            raise ValueError('Rasteres con grillas distintas: alinear en QGIS.')
+        a = src.read(1, masked=True).astype('float64')
+        # SoilGrids usa g/kg; dividiendo por 10 se obtienen porcentajes.
+        capas[propiedad] = a / 10.0
+
+fig, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
+for ax, (prop, nombre) in zip(axes, [('sand','Arena'),
+                                      ('silt','Limo'), ('clay','Arcilla')]):
+    im = ax.imshow(capas[prop], extent=extent, origin='upper',
+                   cmap='viridis', vmin=0, vmax=100)
+    ax.set(title=f'{nombre}, suelo 0-5 cm (%)',
+           xlabel='Longitud', ylabel='Latitud')
+    fig.colorbar(im, ax=ax, shrink=0.7)
+fig.suptitle('SoilGrids: textura estimada, sector de Talca')
+fig.savefig(FIG / 'textura_talca.png', dpi=160)
+plt.close(fig)
+
+# Estadisticos espaciales descriptivos; celdas modeladas, NO muestras.
+filas = []
+for prop, a in capas.items():
+    valores = a.compressed()
+    if not len(valores):
+        raise ValueError(f'Sin datos validos para {prop}.')
+    filas.append({'componente': prop, 'celdas_validas': len(valores),
+                  'media_pct': round(float(np.mean(valores)), 2),
+                  'min_pct': round(float(np.min(valores)), 2),
+                  'max_pct': round(float(np.max(valores)), 2)})
+res = pd.DataFrame(filas)
+res.to_csv(DATOS / 'resumen_textura.csv', index=False)
+print(res.to_string(index=False))
+print('Listo: mapa y tabla de textura estimada.')
+
+\end{lstlisting}
+
+Ejecutar desde el directorio principal del proyecto:
+\begin{lstlisting}
+python scripts/textura_suelo.py
+\end{lstlisting}
+
+\textbf{Archivos esperados:} tres archivos GeoTIFF en
+\texttt{datos/soilgrids/}; la figura \texttt{figuras/textura\_talca.png} y
+la tabla \texttt{datos/soilgrids/resumen\_textura.csv}.
+
+\textbf{Comprobaciones:} los porcentajes deben estar en el intervalo
+0--100 y las tres capas deben cubrir exactamente la misma grilla.
+Los porcentajes de las tres fracciones pueden no sumar exactamente 100
+por tratarse de predicciones modeladas de forma independiente.
+No interpretar diferencias entre píxeles como mediciones de terreno.
+
+\subsubsection*{Si SoilGrids no responde}
+ISRIC informa interrupciones de su \emph{API REST}; el procedimiento anterior
+usa \emph{WCS}, que es un servicio distinto, pero también requiere Internet y
+puede fallar. \textbf{No generar números ficticios ni reemplazar las capas
+por imágenes sin datos.} Como alternativa:
+\begin{enumerate}[nosep]
+\item Abrir \url{https://soilgrids.org/} y comprobar si su interfaz permite
+exportar el recorte de \texttt{sand}, \texttt{silt} y \texttt{clay}, 0--5 cm, promedio.
+\item Si se dispone de QGIS, crear una conexión WCS con la URL
+\url{https://maps.isric.org/mapserv?map=/map/sand.map}; repetir cambiando
+\texttt{sand} por \texttt{silt} y \texttt{clay}. Exportar la capa correspondiente
+a GeoTIFF y utilizar \emph{exactamente} la misma extensión, resolución y
+sistema de referencia para las tres exportaciones.
+\item Guardar los archivos con los nombres indicados en el código, dentro de
+\texttt{datos/soilgrids/}, y volver a ejecutar el script.
+\item Si ninguno de los servicios está disponible, registrar la incidencia
+en \texttt{notas/semana02.md} y completar la interpretación meteorológica.
+La parte espacial queda pendiente de obtener datos reales, sin inventarlos.
+\end{enumerate}
+
+\textbf{Nota:} las descargas por WCS dependen del servidor y de sus parámetros.
+La URL y la documentación oficial están en
+\url{https://docs.isric.org/globaldata/soilgrids/wcs.html}.
+
+\subsection{Parte G. Interpretación y entrega (10 min de discusión)}
+Crear \texttt{notas/semana02.md} y responder:
+\begin{enumerate}[label=\arabic*.]
+\item ¿Qué sitio presenta mayor porcentaje de horas sobre 8 m/s?
+¿Coincide con el sitio que presenta más eventos? Justificar con la tabla.
+\item ¿Cómo cambia la frecuencia al pasar de 6 a 10 m/s?
+¿Cuáles son las limitaciones de usar un solo mes y tres puntos?
+\item En el sector analizado, ¿dónde predomina la arena, el limo o la arcilla?
+Apoyar la respuesta en los mapas y en la tabla, si se obtuvieron los GeoTIFF.
+\item ¿Por qué \emph{no} es correcto concluir que los sectores con más limo
+emiten necesariamente más polvo, o que el viento intenso transportó hierro?
+\item Formular una hipótesis comprobable que conecte textura del suelo,
+intensidad del viento y una posible fuente geológica, indicando qué datos
+adicionales harían falta para evaluarla (humedad, cobertura, Fe, etc.).
+\end{enumerate}
+
+\textbf{Entrega mínima:} código ejecutable; dos gráficos meteorológicos;
+\texttt{resumen\_eventos.csv}; respuestas documentadas; repositorio actualizado.
+\textbf{Entrega adicional, condicionada a disponibilidad del servidor:}
+tres raster de textura, mapa y tabla de porcentajes. Registrar fecha,
+fuente, recorte geográfico y posibles errores de descarga.
+
+\textbf{Antes del viernes 13 de noviembre:} completar las figuras, revisar
+la variación diurna de los eventos y buscar una fuente regional de
+\emph{granulometría medida en sedimentos o suelos} y evidencia mineralógica
+de hierro. SoilGrids es un punto de partida espacial, no reemplaza datos
+geológicos de la fuente de polvo.
+
+\subsection*{Fuentes de la Entrega 02}
+\begin{itemize}[nosep]
+\item ISRIC, \emph{SoilGrids}: \url{https://isric.org/explore/soilgrids}.
+\item ISRIC, WCS: \url{https://docs.isric.org/globaldata/soilgrids/wcs.html}.
+\item ISRIC, unidades de las capas: \url{https://docs.isric.org/globaldata/soilgrids/SoilGrids_faqs_01.html}.
+\item Copernicus, ERA5: \url{https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels}.
+\end{itemize}
+
+
+
+\section{Parte H. Cartografía geológica y contenido de hierro}
+\textbf{Objetivo:} incorporar información geológica \emph{real} de la Región
+ del Maule, delimitar posibles áreas de interés y distinguir evidencias
+ litológicas de mediciones de contenido de hierro (Fe).
+
+\textbf{Importante:} una carta geológica representa unidades y tipos de roca;
+\emph{no} es un mapa de concentración de Fe ni permite asignar porcentajes
+numéricos de hierro a cada unidad. Una roca que contiene minerales con Fe
+no necesariamente genera polvo disponible para transporte. Esta actividad
+sirve para formular y priorizar hipótesis, no para cuantificar emisiones.
+
+\subsection{H1. Fuentes oficiales que utilizaremos}
+\begin{enumerate}[label=\arabic*.,leftmargin=*]
+\item \textbf{Mapa geológico de Chile 1:1.000.000.} El Ministerio del Medio
+Ambiente (MMA), con información de SERNAGEOMIN, publica \emph{Geología Base}
+en formatos SHP y GeoJSON. Incluye ubicación y atributos geológicos;
+ su escala es de reconocimiento regional, no de detalle local:
+\url{https://lineasdebasepublicas.mma.gob.cl/datos_abiertos/dataset/geologia-base}.
+\item \textbf{Cartas de mayor detalle.} En el catálogo de SERNAGEOMIN buscar
+\emph{Geología del área San Clemente--Melado} (2024, código M433)
+y \emph{Geología del área Pichibelco--Cauquenes} (2023, código M434),
+ambas a escala 1:100.000:
+\url{https://portalsdnmext.sernageomin.cl/publicacionesgeologicas}.
+Estas cartas deben emplearse para interpretar las unidades presentes en
+sectores concretos; su cobertura no es toda la región.
+\item \textbf{Geoquímica de sedimentos.} SERNAGEOMIN cuenta con un programa
+de cartografía geoquímica y un visor de sedimentos:
+\url{https://www.sernageomin.cl/geologia-general/}.
+Si existen muestras georreferenciadas en el área de estudio con análisis de
+Fe, sus valores pueden servir para contrastar las hipótesis cartográficas.
+\end{enumerate}
+
+\subsection{H2. Descargar la cartografía en formato GeoJSON (15 min)}
+\begin{enumerate}[nosep]
+\item Acceder a la página \emph{Geología Base} indicada en H1.
+\item Bajo \emph{Datos y recursos}, elegir \emph{Geología Base GeoJSON}
+y luego \emph{Descargar}. El recurso se ofrece como archivo ZIP.
+\item Crear la carpeta \texttt{datos/geologia/} en el proyecto.
+\item Descomprimir el ZIP dentro de esa carpeta, de manera que el archivo
+\texttt{.geojson} quede allí o en una subcarpeta.
+\item Registrar la URL, fecha de acceso, nombre exacto del archivo y
+\emph{escala 1:1.000.000} en \texttt{notas/semana02.md}.
+\end{enumerate}
+
+\textbf{Si falla la descarga:} abrir el catálogo oficial y consultar
+las cartas M433/M434 para la interpretación. No crear geometrías ni
+unidades geológicas ficticias. El código siguiente deberá ejecutarse
+cuando el archivo real esté disponible.
+
+\subsection{H3. Crear un mapa geológico regional con Python}
+En la terminal del entorno virtual instalar:
+\begin{lstlisting}
+python -m pip install geopandas
+\end{lstlisting}
+Crear \texttt{scripts/mapa\_geologico\_maule.py} con el siguiente código.
+ El programa busca el GeoJSON descargado, selecciona una \textbf{ventana
+geográfica exploratoria} del Maule, muestra las unidades y crea un CSV
+con las unidades cartografiadas. \textbf{La ventana es un rectángulo de
+análisis, no el límite administrativo regional.}
+
+\begin{lstlisting}[language=Python]
+"""Mapa geologico exploratorio del Maule (datos reales desde MMA/SERNAGEOMIN).
+Requiere GeoJSON descargado desde el portal MMA, sin inventar Fe.
+"""
+from pathlib import Path
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import pandas as pd
+
+BASE = Path(__file__).resolve().parents[1]
+ORIGEN = BASE / 'datos' / 'geologia'
+FIG = BASE / 'figuras'
+FIG.mkdir(parents=True, exist_ok=True)
+ORIGEN.mkdir(parents=True, exist_ok=True)
+archivos = list(ORIGEN.rglob('*.geojson')) + list(ORIGEN.rglob('*.json'))
+if not archivos:
+    raise FileNotFoundError(
+        'Descargue y descomprima Geologia Base GeoJSON desde el portal MMA '
+        'en datos/geologia/. No se usan datos de ejemplo como resultados.')
+
+# El GeoJSON de geologia base es nacional; mostramos una ventana del Maule.
+gdf = gpd.read_file(archivos[0]).to_crs('EPSG:4326')
+gdf = gdf[gdf.geometry.notna() & ~gdf.geometry.is_empty].copy()
+# Recorte por interseccion con el rectangulo (no equivale al limite regional).
+oeste, este, sur, norte = -73.4, -70.3, -36.5, -34.4
+maule = gdf.cx[oeste:este, sur:norte].copy()
+if maule.empty:
+    raise ValueError('No se encontraron unidades en el recorte del Maule. Revisar archivo/CRS.')
+
+# Detectar columna de descripcion de rocas; no asumir un esquema fijo.
+columnas = [c for c in maule.columns if c != 'geometry']
+preferencias = ['tipo_roca', 'tipo de roca', 'litologia', 'litologia',
+                'composicio', 'descripcion', 'descripcio', 'geo']
+col = next((c for p in preferencias for c in columnas if p in c.lower()), None)
+if col is None:
+    col = next((c for c in columnas if pd.api.types.is_string_dtype(maule[c])), None)
+if col is None:
+    raise ValueError(f'No hay campo textual para clasificar unidades. Columnas: {columnas}')
+
+maule['unidad_mapa'] = maule[col].fillna('Sin clasificar').astype(str).str.strip()
+conteos = maule['unidad_mapa'].value_counts()
+principales = set(conteos.head(8).index)
+maule['clase'] = maule['unidad_mapa'].where(maule['unidad_mapa'].isin(principales),
+                                          'Otras unidades')
+fig, ax = plt.subplots(figsize=(9, 7))
+maule.plot(column='clase', categorical=True, legend=True, ax=ax,
+           edgecolor='0.45', linewidth=0.25,
+           legend_kwds={'loc': 'upper left', 'bbox_to_anchor': (1.02, 1),
+                        'fontsize': 7})
+ax.set_xlim(oeste, este)
+ax.set_ylim(sur, norte)
+ax.set_xlabel('Longitud (grados)')
+ax.set_ylabel('Latitud (grados)')
+ax.set_title('Geologia base: recorte exploratorio del Maule\n'
+             'Fuente: MMA / SERNAGEOMIN, escala 1:1.000.000')
+fig.tight_layout()
+fig.savefig(FIG / 'geologia_maule.png', dpi=180, bbox_inches='tight')
+plt.close(fig)
+
+# Listado de unidades representadas, NO porcentajes de Fe.
+resumen = (maule.groupby('unidad_mapa', dropna=False).size()
+           .rename('poligonos_en_recorte').reset_index()
+           .sort_values('poligonos_en_recorte', ascending=False))
+resumen.to_csv(ORIGEN / 'unidades_maule.csv', index=False, encoding='utf-8-sig')
+print(f'GeoJSON: {archivos[0].name}')
+print(f'Campo cartografico empleado: {col}')
+print(f'Poligonos en el recorte: {len(maule)}')
+print('Archivos: figuras/geologia_maule.png, datos/geologia/unidades_maule.csv')
+print('ATENCION: este mapa NO contiene concentraciones ni porcentajes de Fe.')
+\end{lstlisting}
+Ejecutar desde la carpeta principal:
+\begin{lstlisting}
+python scripts/mapa_geologico_maule.py
+\end{lstlisting}
+\textbf{Resultado:} \texttt{figuras/geologia\_maule.png} y
+\texttt{datos/geologia/unidades\_maule.csv}. La columna usada para
+agrupar unidades se imprime en pantalla. Comprobar que sus categorías
+sean realmente tipos o descripciones geológicas; si el archivo emplea
+otro esquema, revisar sus atributos antes de interpretar el mapa.
+
+\subsection{H4. ¿Cómo reconocer posibles sectores de interés para Fe?}
+Revisar la leyenda y la memoria de las cartas detalladas. Buscar, si
+están presentes, unidades máficas, rocas volcánicas con minerales
+ferromagnesianos, cuerpos mineralizados o depósitos con minerales
+portadores de hierro. \textbf{Estas son pistas cualitativas, no medidas
+de Fe ni garantías de sedimentos erosionables.} Los depósitos
+superficiales y aluviales podrían ser importantes para la disponibilidad
+de partículas, pero requieren verificación de textura, humedad, cobertura
+y mineralogía.
+
+Para documentar candidatos, crear en \texttt{notas/semana02.md} una
+tabla con \emph{sector, unidad/código, litología descrita, argumento
+mineralógico, evidencia de sedimento superficial, fuente documental y
+grado de incertidumbre}. Registrar al menos dos sectores si la
+cartografía los permite. No clasificarlos automáticamente como fuentes
+emisoras de hierro.
+
+\subsection{H5. ¿Es posible calcular un porcentaje de hierro?}
+\textbf{Sí, pero únicamente si existe un análisis geoquímico asociado
+a una muestra y una fracción/material definidos.} Si el dato está
+expresado como concentración másica de hierro en partes por millón:
+\[
+\mathrm{Fe\ (\%)}=\frac{\mathrm{Fe\ (ppm)}}{10\,000}.
+\]
+Si se informa \emph{hierro total como} $\mathrm{Fe_2O_3}$ (porcentaje
+en masa), la masa equivalente de Fe se calcula, si la convención analítica
+lo permite, como
+\[
+\mathrm{Fe\ (\%)}=\mathrm{Fe_2O_3\ (\%)}
+\frac{2M_{\mathrm{Fe}}}{2M_{\mathrm{Fe}}+3M_{\mathrm{O}}}
+\simeq 0.6994\,\mathrm{Fe_2O_3\ (\%)}.
+\]
+Este factor \textbf{no} significa que toda la muestra contenga ese
+óxido: es una conversión de la forma de reportar el elemento.
+No aplicar conversiones sin revisar las unidades, el método y si el
+valor corresponde a Fe total o a alguna fracción extraíble.
+
+\textbf{Ejemplo exclusivamente aritmético, no un resultado del Maule:}
+$25\,000$ ppm de Fe equivalen a $2.5$ por ciento en masa. No utilizar
+este valor en mapas o conclusiones del proyecto.
+
+\subsection{H6. Mapa de Fe medido (actividad condicionada a datos reales)}
+Cuando se obtenga una tabla geoquímica verificable con coordenadas,
+Fe y la fuente de cada registro, guardar
+\texttt{datos/geologia/muestras\_fe.csv} con las columnas
+\texttt{latitud,longitud,fe\_pct,fuente}. Para preparar el CSV,
+transformar las unidades de la fuente según H5 y dejar anotado
+\emph{método, material analizado, tamaño de fracción y calidad del dato}.
+\textbf{No se proporciona un CSV ficticio.}
+
+Crear \texttt{scripts/mapa\_fe\_maule.py}:
+\begin{lstlisting}[language=Python]
+"""Mapa opcional de Fe medido: solo ejecutable con una tabla real y trazable."""
+from pathlib import Path
+import pandas as pd
+import matplotlib.pyplot as plt
+
+BASE = Path(__file__).resolve().parents[1]
+archivo = BASE / 'datos' / 'geologia' / 'muestras_fe.csv'
+if not archivo.exists():
+    raise FileNotFoundError(
+        'No hay datos geoquimicos medidos. No crear porcentajes ficticios. '
+        'Cuando consiga una tabla verificable, guardela como datos/geologia/muestras_fe.csv')
+
+df = pd.read_csv(archivo)
+obligatorias = {'latitud', 'longitud', 'fe_pct', 'fuente'}
+if not obligatorias.issubset(df.columns):
+    raise ValueError(f'Faltan columnas: {sorted(obligatorias - set(df.columns))}')
+for c in ['latitud', 'longitud', 'fe_pct']:
+    df[c] = pd.to_numeric(df[c], errors='raise')
+if (df.fe_pct < 0).any() or (df.fe_pct > 100).any():
+    raise ValueError('Fe (%) debe estar entre 0 y 100; comprobar unidades.')
+if df[['latitud','longitud','fe_pct']].isna().any().any():
+    raise ValueError('Hay valores faltantes.')
+fig, ax = plt.subplots(figsize=(8, 6))
+p = ax.scatter(df.longitud, df.latitud, c=df.fe_pct, s=65,
+               cmap='viridis', edgecolors='black', linewidths=0.4)
+fig.colorbar(p, ax=ax, label='Fe medido (% en masa)')
+ax.set(xlabel='Longitud', ylabel='Latitud',
+       title='Concentracion de hierro en muestras geoquimicas')
+fig.tight_layout()
+destino = BASE / 'figuras' / 'muestras_fe_maule.png'
+destino.parent.mkdir(exist_ok=True)
+fig.savefig(destino, dpi=170)
+print('Figura creada:', destino)
+print('Verificar: muestras, fraccion granulometrica, metodo y fuente.')
+\end{lstlisting}
+El programa solo genera \texttt{figuras/muestras\_fe\_maule.png} si
+se dispone de las muestras. Representa puntos medidos y \emph{no}
+interpola las concentraciones entre ellos.
+
+\subsection{H7. Actividad de interpretación (para completar después de la clase)}
+\begin{enumerate}[label=\arabic*.]
+\item Seleccionar dos unidades geológicas del mapa y describir su
+composición litológica, citando una carta o memoria geológica.
+\item ¿Qué información faltaría para afirmar que una unidad contiene
+más Fe que otra? Diferenciar Fe en roca, suelo y sedimento fino.
+\item ¿Qué lugares del mapa parecen interesantes para contrastar con
+la frecuencia de eventos de viento intenso? Justificar, sin afirmar
+transporte real.
+\item ¿Por qué el mapa regional a escala 1:1.000.000 no identifica
+por sí solo afloramientos expuestos, granulometría o áreas de emisión?
+\end{enumerate}
+
+\textbf{Entregable adicional:} mapa geológico y tabla de unidades,
+\emph{si se pudo descargar el GeoJSON}; dos sectores candidatos
+justificados con cartografía oficial. El mapa de Fe es una actividad
+posterior \emph{condicionada} a disponer de análisis químicos.
+
+\textbf{Nota para la próxima sesión:} revisar las cartas M433 y M434,
+la disponibilidad real de datos de Fe en el visor geoquímico y la
+coincidencia entre fuentes superficiales posibles, textura y vientos.
+
 \end{document}
+
