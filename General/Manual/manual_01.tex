@@ -1,0 +1,593 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[spanish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,geometry,xcolor,xurl,hyperref,enumitem,booktabs,longtable,fancyhdr,listings,amsmath}
+\geometry{margin=2.25cm}
+\emergencystretch=2em
+\definecolor{azul}{HTML}{17456B}
+\hypersetup{colorlinks=true,urlcolor=azul,linkcolor=azul}
+\lstdefinestyle{codigo}{
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    frame=single,
+    columns=fullflexible,
+    showstringspaces=false,
+    upquote=true,
+    keepspaces=true,
+    tabsize=4
+}
+\lstset{style=codigo}
+\pagestyle{fancy}\fancyhf{}\lhead{OPP225 | Manual de trabajo}\rhead{Entrega 01}\cfoot{\thepage}
+\setlength{\headheight}{14pt}
+\setlength{\parskip}{5pt}\setlength{\parindent}{0pt}
+
+\begin{document}
+
+\begin{center}{\LARGE\bfseries Manual semanal de investigación aplicada}\\[4pt]{\large De la roca al clima: fuentes geológicas y transporte potencial de hierro en la Región del Maule}\\[8pt]\end{center}
+
+\section{Parte A. Instalar y configurar las herramientas (2--3 h)}
+
+\subsection*{A1. Conceptos básicos}
+
+\begin{itemize}
+
+    \item \textbf{Python:} Lenguaje de programación que
+    utilizaremos para escribir instrucciones, procesar
+    datos y realizar análisis.
+
+    \item \textbf{Visual Studio Code (VS Code):} Editor
+    de código donde escribiremos, organizaremos y
+    ejecutaremos nuestros programas en Python.
+
+    \item \textbf{Git:} Herramienta que permite registrar
+    y administrar las versiones de un proyecto.
+
+    Debe instalarse por separado.
+
+    \item \textbf{Terminal:} Interfaz que permite
+    comunicarse con el computador mediante comandos.
+
+    \item \textbf{Repositorio:} Carpeta de un proyecto
+    cuyo historial de cambios es administrado por Git.
+
+    \item \textbf{CSV:} Formato de archivo que almacena
+    datos en filas y columnas, y puede abrirse
+    mediante Excel o Python.
+
+\end{itemize}
+
+\subsection*{A2. Instalar y comprobar las herramientas}
+
+Instalar desde las páginas oficiales: \url{https://www.python.org/downloads/}, \url{https://code.visualstudio.com/} y \url{https://git-scm.com/downloads}. En Windows, activar la opción de añadir Python al PATH si el instalador la ofrece. En Ubuntu, se puede usar:
+
+\begin{lstlisting}
+
+sudo apt update
+sudo apt install python3 python3-venv python3-pip git
+\end{lstlisting}
+
+Abrir VS Code y seleccionar \emph{Terminal > New Terminal}. Ejecutar las comprobaciones siguientes (en Windows, si \texttt{python} no existe, probar \texttt{py}):
+
+\begin{lstlisting}
+
+python --version
+git --version
+\end{lstlisting}
+
+En Ubuntu usar \texttt{python3 --version}. Registrar las versiones en el informe de entrega. En VS Code, abrir \emph{Extensions} (Ctrl+Shift+X), buscar \textbf{Python} de Microsoft e instalarla; opcionalmente instalar \textbf{Pylance}.
+
+\subsection*{A3. Crear la carpeta del proyecto}
+
+Crear una carpeta llamada \texttt{opp225-maule-vientos} en Documentos. En VS Code elegir \emph{File > Open Folder} y abrirla. Crear estas subcarpetas desde el explorador lateral (clic derecho > New Folder):
+
+\begin{lstlisting}
+
+opp225-maule-vientos/
+  datos/
+  figuras/
+  scripts/
+  notas/
+  README.md
+  requirements.txt
+  .gitignore
+\end{lstlisting}
+
+En \texttt{README.md}, escribir el nombre del proyecto, la pregunta de investigación, la fecha y la fuente de los datos. En \texttt{.gitignore}, escribir:
+
+\begin{lstlisting}
+
+.venv/
+__pycache__/
+*.pyc
+\end{lstlisting}
+
+\subsection*{A4. Crear el entorno virtual e instalar bibliotecas}
+
+En la terminal abierta en la carpeta del proyecto:
+
+\begin{lstlisting}
+
+# Ubuntu / Linux
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install requests pandas matplotlib
+python -m pip freeze > requirements.txt
+\end{lstlisting}
+
+En Windows (PowerShell), en vez de los dos primeros comandos:
+
+\begin{lstlisting}
+
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+\end{lstlisting}
+
+Si PowerShell impide activar, usar la terminal \emph{Command Prompt} y ejecutar:
+
+\begin{lstlisting}
+.venv\Scripts\activate.bat
+\end{lstlisting}
+
+En VS Code seleccionar \emph{Ctrl+Shift+P > Python: Select Interpreter} y escoger el Python dentro de \texttt{.venv}. La terminal debe mostrar \texttt{(.venv)}. No instalar paquetes globalmente.
+
+\subsection*{A5. Primer programa}
+
+Crear \texttt{scripts/hola.py} con:
+
+\begin{lstlisting}[language=Python]
+
+print("Hola, investigacion del viento en Maule")
+print("2 + 3 =", 2 + 3)
+\end{lstlisting}
+
+Ejecutar \texttt{python scripts/hola.py}. Deben aparecer el saludo y el número 5. Si falla, verificar que la terminal esté en la carpeta principal y que el entorno virtual esté activado.
+
+\subsection*{A6. Primeros pasos con Git}
+
+Git conserva versiones \emph{locales}; no es obligatorio crear una cuenta de GitHub esta semana. En la terminal:
+
+\begin{lstlisting}
+
+git config --global user.name "Nombre Apellido"
+git config --global user.email "correo@ejemplo.cl"
+git init
+git status
+git add README.md .gitignore requirements.txt scripts/hola.py
+git commit -m "Iniciar proyecto y entorno Python"
+git log --oneline
+\end{lstlisting}
+
+Reemplazar nombre y correo por datos propios. En VS Code, el ícono \emph{Source Control} muestra cambios; \emph{Commit} guarda una versión. No usar \texttt{git add .} sin revisar archivos; no incorporar contraseñas ni carpetas \texttt{.venv}. Al terminar la semana hacer un segundo commit con código, notas y gráficos.
+
+\subsection{Subir un repositorio local a GitHub}
+
+\textbf{GitHub} permite almacenar en Internet los repositorios
+creados con Git, facilitando su respaldo y colaboración.
+
+\begin{enumerate}
+
+    \item \textbf{Crear un repositorio en GitHub:}
+    ingresar a \url{https://github.com}, iniciar sesión
+    y seleccionar \texttt{New repository}. Asignar un nombre,
+    elegir \texttt{Private} o \texttt{Public} y presionar
+    \texttt{Create repository}. No inicializar con README
+    ni otros archivos.
+
+    \item \textbf{Preparar el repositorio local:}
+    abrir la carpeta del proyecto en VS Code y ejecutar
+    en la terminal (si todavía no se ha inicializado Git):
+
+    \begin{verbatim}
+
+git init
+git add .
+git commit -m "Primera version"
+\end{verbatim}
+
+    Antes de usar \texttt{git add .}, verificar que
+    \texttt{.gitignore} excluya archivos innecesarios
+    y credenciales.
+
+    \item \textbf{Conectar Git con GitHub:}
+    copiar la dirección HTTPS del repositorio creado
+    y ejecutar:
+
+    \begin{verbatim}
+
+git branch -M main
+git remote add origin https://github.com/USUARIO/REPOSITORIO.git
+\end{verbatim}
+
+    Reemplazar \texttt{USUARIO} y \texttt{REPOSITORIO}
+    por los nombres correspondientes.
+
+    \item \textbf{Subir los archivos:}
+
+    \begin{verbatim}
+
+git push -u origin main
+\end{verbatim}
+
+    Si se solicita autenticación, seguir las
+    instrucciones de GitHub.
+
+    \item \textbf{Subir modificaciones posteriores:}
+    después de modificar y guardar los archivos,
+    ejecutar:
+
+    \begin{verbatim}
+
+git add .
+git commit -m "Descripcion de los cambios"
+git push
+\end{verbatim}
+
+\end{enumerate}
+
+\noindent
+\textbf{Importante:} \texttt{git add} prepara los cambios,
+\texttt{git commit} registra una versión local y
+\texttt{git push} la envía a GitHub.
+
+\textbf{Verificación:} abrir el repositorio en GitHub,
+actualizar la página y comprobar que aparecen los archivos
+del proyecto.
+
+\section{Parte B. Obtener datos reales de viento (2--3 h)}
+
+\subsection*{B1. Por qué ERA5 y qué se descargará}
+
+ERA5 es un \textbf{reanálisis}: combina observaciones y un modelo meteorológico para reconstruir condiciones atmosféricas. No es una medición directa en cada punto. Para facilitar el aprendizaje se utilizará la API histórica de \textbf{Open-Meteo}, seleccionando explícitamente \texttt{models=era5}; posteriormente se podrá descargar la grilla ERA5 original de Copernicus para cartografía regional. No mezclar el modelo automático \emph{Best Match} con ERA5 en una comparación temporal.
+
+\textbf{Período piloto:} 1 al 30 de septiembre de 2025, a resolución horaria. \textbf{Puntos exploratorios aproximados:} costa de Constitución ($-35.33,-72.42$), valle de Talca ($-35.43,-71.67$) y precordillera de San Clemente ($-35.55,-71.10$). Las coordenadas son puntos de muestreo iniciales, \emph{no} ubicaciones comprobadas de fuentes de Fe ni receptores definitivos. La extracción se hace por punto de grilla cercano, por lo que no representa microclimas locales.
+
+Se descargarán velocidad (m/s) y dirección (grados meteorológicos, \emph{de donde viene} el viento) a 10 m. El intervalo se expresa en UTC para evitar ambigüedades horarias. La velocidad es una magnitud no negativa; 0 grados indica viento desde el norte y 270 grados desde el oeste.
+
+\subsection*{B2. Crear el programa de descarga}
+
+Copiar el siguiente código \emph{sin modificar nombres de carpetas} en \texttt{scripts/descargar\_viento.py}:
+
+\begin{lstlisting}[language=Python]
+
+from pathlib import Path
+import requests
+import pandas as pd
+BASE = Path(__file__).resolve().parents[1]
+DESTINO = BASE / "datos"
+DESTINO.mkdir(exist_ok=True)
+URL = "https://archive-api.open-meteo.com/v1/archive"
+PUNTOS = {
+    "Constitucion": (-35.33, -72.42),
+    "Talca": (-35.43, -71.67),
+    "San_Clemente": (-35.55, -71.10),
+}
+for nombre, (lat, lon) in PUNTOS.items():
+    parametros = {
+        "latitude": lat,
+        "longitude": lon,
+        "start_date": "2025-09-01",
+        "end_date": "2025-09-30",
+        "hourly": "wind_speed_10m,wind_direction_10m",
+        "wind_speed_unit": "ms",
+        "timezone": "GMT",
+        "models": "era5",
+    }
+    respuesta = requests.get(URL, params=parametros, timeout=90)
+    respuesta.raise_for_status()
+    contenido = respuesta.json()
+    if "hourly" not in contenido:
+        raise ValueError(f"Respuesta inesperada: {contenido}")
+    tabla = pd.DataFrame(contenido["hourly"])
+    tabla["fecha_hora_utc"] = pd.to_datetime(tabla["time"], utc=True)
+    tabla["sitio"] = nombre
+    tabla["latitud_solicitada"] = lat
+    tabla["longitud_solicitada"] = lon
+    tabla["latitud_grilla"] = contenido["latitude"]
+    tabla["longitud_grilla"] = contenido["longitude"]
+    tabla.to_csv(DESTINO / f"viento_{nombre}.csv", index=False)
+    print(nombre, len(tabla), "filas;", "grilla:",
+          contenido["latitude"], contenido["longitude"])
+\end{lstlisting}
+
+Ejecutar:
+
+\begin{lstlisting}
+
+python scripts/descargar_viento.py
+\end{lstlisting}
+
+\textbf{Comprobación:} deben aparecer tres archivos CSV en \texttt{datos/}, cada uno con 720 registros horarios (30 días por 24 horas), si el servicio devuelve todas las horas solicitadas. Si falla la conexión, comprobar internet, esperar y volver a ejecutar. Si aparece un error HTTP, registrar el mensaje; no inventar datos. Conservar los archivos originales y anotar la fecha de descarga.
+
+\section{Parte C. Analizar y graficar (1--2 h)}
+
+Crear \texttt{scripts/analizar\_viento.py} y copiar:
+
+\begin{lstlisting}[language=Python]
+
+from pathlib import Path
+import pandas as pd
+import matplotlib.pyplot as plt
+BASE = Path(__file__).resolve().parents[1]
+FIG = BASE / "figuras"
+FIG.mkdir(exist_ok=True)
+archivos = sorted((BASE / "datos").glob("viento_*.csv"))
+if len(archivos) != 3:
+    raise RuntimeError("Primero ejecute descargar_viento.py")
+df = pd.concat([pd.read_csv(p) for p in archivos], ignore_index=True)
+df["fecha_hora_utc"] = pd.to_datetime(df["fecha_hora_utc"], utc=True)
+vel = "wind_speed_10m"
+dir_ = "wind_direction_10m"
+if df[[vel, dir_]].isna().any().any():
+    raise ValueError("Hay datos faltantes: revisar CSV")
+print("Resumen de velocidades en m/s:")
+print(df.groupby("sitio")[vel].agg(["count", "mean", "max"]))
+resumen = df.groupby("sitio")[vel].agg(["count", "mean", "max"])
+resumen.to_csv(BASE / "datos" / "resumen_viento.csv")
+for sitio, parte in df.groupby("sitio"):
+    plt.plot(parte["fecha_hora_utc"], parte[vel], label=sitio,
+             linewidth=0.7, alpha=0.8)
+plt.ylabel("Velocidad a 10 m (m/s)")
+plt.xlabel("Fecha (UTC)")
+plt.title("Viento horario ERA5, septiembre 2025")
+plt.legend()
+plt.gcf().autofmt_xdate()
+plt.tight_layout()
+plt.savefig(FIG / "serie_temporal.png", dpi=160)
+plt.close()
+# Sectores de PROCEDENCIA del viento, no de destino.
+sectores = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"]
+fig, axes = plt.subplots(1, 3, figsize=(12, 3.5), sharey=True)
+for ax, (sitio, parte) in zip(axes, df.groupby("sitio")):
+    indice = (((parte[dir_] % 360) + 22.5) // 45).astype(int) % 8
+    frecuencia = indice.value_counts(normalize=True).reindex(range(8), fill_value=0)
+    ax.bar(sectores, 100 * frecuencia)
+    ax.set_title(sitio)
+    ax.set_xlabel("Viento desde")
+axes[0].set_ylabel("Frecuencia (%)")
+fig.suptitle("Procedencia del viento ERA5, septiembre 2025")
+fig.tight_layout()
+fig.savefig(FIG / "direcciones.png", dpi=160)
+plt.close(fig)
+print("Listo: ver carpeta figuras")
+\end{lstlisting}
+
+Ejecutar \path{python scripts/analizar_viento.py}. Abrir los dos PNG desde el explorador de VS Code. El primer gráfico muestra la velocidad hora a hora; el segundo muestra desde qué sector proviene el viento, con ocho categorías. \textbf{Importante:} no interpretar los ocho sectores como ocho direcciones de transporte; el aire se desplaza aproximadamente hacia el sector opuesto.
+
+\section{Parte D. Interpretación científica y tareas de reflexión (1 h)}
+
+En \texttt{notas/semana01.md}, responder con palabras propias:
+
+\begin{enumerate}[leftmargin=*]
+
+\item ¿Qué sitio tiene mayor velocidad media y cuál tiene el máximo horario más alto? Indicar valores y unidades obtenidos del CSV, no estimaciones visuales.
+
+\item ¿De qué sector \emph{proviene} con mayor frecuencia el viento en cada sitio? ¿Hacia qué sector se desplazaría una partícula idealmente transportada por ese viento?
+
+\item ¿Cuáles son tres diferencias entre reanálisis, imágenes satelitales y estaciones meteorológicas? ¿Por qué no se puede afirmar que el viento observado transportó hierro?
+
+\item Proponer una hipótesis \emph{comprobable} sobre conectividad atmosférica entre una fuente geológica potencial y un receptor (costa, embalse u otro), aclarando que aún no se ha verificado la localización de la fuente.
+
+\item Identificar al menos tres fuentes de incertidumbre: resolución espacial, altura del viento, topografía, disponibilidad de sedimentos, humedad del suelo o dirección variable.
+
+\end{enumerate}
+
+\textbf{Criterio de calidad:} no inferir emisiones, flujos de Fe ni deposición a partir de la velocidad sola. El umbral de levantamiento de polvo depende de tamaño de grano, humedad, cobertura, rugosidad y esfuerzo cortante; no fijar un umbral universal sin respaldo bibliográfico.
+
+\section{Qué análisis seguiremos desarrollando}
+
+\begin{longtable}{p{0.24\textwidth}p{0.38\textwidth}p{0.24\textwidth}}
+
+\toprule\textbf{Análisis} & \textbf{Pregunta científica} & \textbf{Momento sugerido}\\\midrule
+Velocidad y sectores & ¿Cuándo y desde dónde sopla el viento? & Esta semana\\
+
+Frecuencia de eventos intensos & ¿Con qué frecuencia se superan umbrales exploratorios? Comparar varios umbrales, no atribuir erosión automática. & Próxima semana\\
+
+Variación estacional y diurna & ¿Cambia el régimen entre verano/invierno o día/noche? & Noviembre\\
+
+Campo espacial $u,v$ ERA5 & ¿Dónde hay patrones regionales coherentes y cómo afectan los Andes y el litoral? & Noviembre\\
+
+Conectividad fuente--receptor & ¿Los vientos apuntan desde fuentes geológicas cartografiadas hacia receptores? & Tras disponer de capas geológicas\\
+
+Sensibilidad e incertidumbre & ¿Cambian las conclusiones con punto, período, umbral o resolución? & Integración final\\\bottomrule
+
+\end{longtable}
+
+Para el análisis vectorial posterior se emplearán las componentes zonal $u$ (positiva hacia el este) y meridional $v$ (positiva hacia el norte), con $V=\sqrt{u^2+v^2}$. El transporte efectivo requeriría además información sobre disponibilidad y propiedades de partículas, turbulencia, levantamiento y deposición.
+
+\section{Lista de verificación para el viernes 30 de octubre}
+
+\begin{itemize}[label=--,leftmargin=*]
+
+\item VS Code, Python y Git instalados; versiones anotadas.
+
+\item Entorno \texttt{.venv} funcional; \texttt{requirements.txt} presente.
+
+\item Primer programa ejecutado correctamente.
+
+\item Repositorio Git con al menos dos commits; mostrar \texttt{git log --oneline}.
+
+\item Tres CSV horarios y \texttt{resumen\_viento.csv} en \texttt{datos/}.
+
+\item Dos gráficos PNG en \texttt{figuras/}.
+
+\item Respuestas en \texttt{notas/semana01.md}, con una hipótesis y limitaciones.
+
+\item README con fuente, fechas, coordenadas y comandos para reproducir.
+
+\end{itemize}
+
+\section*{Reproducir el proyecto en otro computador}
+
+Instalar Python y Git, copiar la carpeta del proyecto y, desde su raíz, crear/activar un entorno virtual nuevo; ejecutar \texttt{python -m pip install -r requirements.txt}, luego \path{python scripts/descargar_viento.py} y \path{python scripts/analizar_viento.py}. Requiere internet para descargar. Las respuestas pueden cambiar por actualizaciones del servicio: conservar fecha de acceso, CSV originales y versión del entorno. En Git guardar el código, las notas y, si su tamaño lo permite, los CSV de este ejercicio.
+
+\section*{Fuentes y documentación}
+
+\begin{itemize}[leftmargin=*]
+
+\item Copernicus Climate Data Store, \emph{ERA5 hourly data on single levels}: \url{https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels}.
+
+\item Open-Meteo, \emph{Historical Weather API}: \url{https://open-meteo.com/en/docs/historical-weather-api}.
+
+\item Python: \url{https://docs.python.org/3/tutorial/}.
+
+\item VS Code, Python: \url{https://code.visualstudio.com/docs/python/python-tutorial}.
+
+\item Git, libro oficial: \url{https://git-scm.com/book/es/v2}.
+
+\end{itemize}
+
+\textbf{Continuidad editorial:} conservar este archivo como \texttt{manual\_01.tex}. Cada viernes se añadirá una entrega \texttt{manual\_02.tex}, \texttt{manual\_03.tex}, etc., manteniendo la misma estructura: objetivos, procedimiento, código, comprobaciones, interpretación y entregables.
+
+%######################### Lunes 26 de Octubre #################
+
+\section{Descarga de datos meteorológicos ERA5 con Python}
+
+\textbf{Objetivo:} Configurar el acceso a Copernicus y descargar
+datos espaciales de viento mediante Python y Jupyter.
+
+\subsection{Crear una cuenta en Copernicus}
+
+\begin{enumerate}
+
+    \item Ingresar a \url{https://cds.climate.copernicus.eu/}
+    y crear una cuenta gratuita.
+
+    \item Iniciar sesión y acceder al perfil:
+    \url{https://cds.climate.copernicus.eu/profile}.
+
+    \item Buscar la sección \textbf{API key} y copiar
+    la clave personal.
+
+    \item Acceder al conjunto de datos
+    \href{https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels}{ERA5 hourly data on single levels}
+    y aceptar las licencias correspondientes.
+
+\end{enumerate}
+
+\subsection{Configurar la API}
+
+En PowerShell de Windows, ejecutar:
+
+\begin{lstlisting}[style=codigo]
+
+notepad "$HOME\.cdsapirc"
+\end{lstlisting}
+
+Escribir las siguientes líneas, reemplazando
+\texttt{TU\_CLAVE\_PERSONAL} por la clave obtenida:
+
+\begin{lstlisting}[style=codigo]
+
+url: https://cds.climate.copernicus.eu/api
+key: TU_CLAVE_PERSONAL
+\end{lstlisting}
+
+Guardar el archivo como \texttt{.cdsapirc},
+sin extensión \texttt{.txt}.
+
+\textbf{Importante:} no compartir la clave personal
+ni subir este archivo a GitHub.
+
+\subsection{Instalar bibliotecas}
+
+Con el entorno virtual activado, ejecutar en la terminal:
+
+\begin{lstlisting}[style=codigo]
+
+python -m pip install cdsapi xarray netCDF4 numpy pandas matplotlib
+\end{lstlisting}
+
+\subsection{Comprobar la configuración desde Jupyter}
+
+Abrir Jupyter en VS Code, seleccionar el entorno virtual
+como \textit{kernel} y ejecutar:
+
+\begin{lstlisting}[style=codigo,language=Python]
+
+import cdsapi
+cliente = cdsapi.Client()
+print("Configuracion de Copernicus correcta.")
+\end{lstlisting}
+
+Si no aparecen errores, la configuración se ha leído correctamente.
+
+\subsection{Descargar datos espaciales de viento}
+
+Descargaremos las componentes horizontales del viento
+a 10 metros de altura para una zona de la Región del Maule.
+
+\begin{lstlisting}[style=codigo,language=Python]
+
+import cdsapi
+cliente = cdsapi.Client()
+solicitud = {
+    "product_type": ["reanalysis"],
+    "variable": [
+        "10m_u_component_of_wind",
+        "10m_v_component_of_wind"
+    ],
+    "year": ["2025"],
+    "month": ["09"],
+    "day": ["01"],
+    "time": ["12:00"],
+    "area": [-35.0, -72.5, -36.0, -71.0],
+    "data_format": "netcdf",
+    "download_format": "unarchived"
+}
+cliente.retrieve(
+    "reanalysis-era5-single-levels",
+    solicitud,
+    "viento_maule.nc"
+)
+\end{lstlisting}
+
+El parámetro \texttt{area} corresponde a los límites
+geográficos en el orden:
+
+\[
+[\text{Norte},\text{Oeste},\text{Sur},\text{Este}].
+\]
+
+El archivo descargado tendrá formato NetCDF (\texttt{.nc}),
+que permite almacenar información espacial y temporal.
+
+\subsection{Visualizar los datos}
+
+En una nueva celda de Jupyter:
+
+\begin{lstlisting}[style=codigo,language=Python]
+
+import xarray as xr
+import numpy as np
+import matplotlib.pyplot as plt
+datos = xr.open_dataset("viento_maule.nc")
+print(datos)
+u = datos["u10"]
+v = datos["v10"]
+rapidez = np.sqrt(u**2 + v**2)
+rapidez.squeeze().plot()
+plt.title("Rapidez del viento - Region del Maule")
+plt.show()
+\end{lstlisting}
+
+La rapidez del viento se obtiene mediante:
+
+\[
+V(x,y,t)=\sqrt{u(x,y,t)^2+v(x,y,t)^2}.
+\]
+
+\noindent
+\textbf{Resultado esperado:}
+Un mapa espacial de rapidez del viento a 10 metros
+de altura, expresada en metros por segundo.
+
+\medskip
+
+\noindent
+\textbf{Nota:} Si aparece el error
+\texttt{403 required licences not accepted},
+se deben aceptar las licencias del conjunto ERA5
+en el portal de Copernicus.
+
+\end{document}
